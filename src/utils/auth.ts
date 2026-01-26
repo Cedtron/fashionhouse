@@ -1,3 +1,5 @@
+import Cookies from 'js-cookie';
+
 export function getToken() { 
   if (typeof window === 'undefined') return null;
   
@@ -5,13 +7,8 @@ export function getToken() {
   const tokenFromStorage = localStorage.getItem('token');
   if (tokenFromStorage) return tokenFromStorage;
   
-  // Import cookies dynamically to avoid SSR issues
-  try {
-    const Cookies = require('js-cookie');
-    return Cookies.get('token') || null;
-  } catch {
-    return null;
-  }
+  // Check cookies
+  return Cookies.get('token') || null;
 }
 
 export function getUser() { 
@@ -23,10 +20,10 @@ export function getUser() {
     if (userFromStorage) return JSON.parse(userFromStorage);
     
     // Then check cookies
-    const Cookies = require('js-cookie');
     const userFromCookies = Cookies.get('user');
     return userFromCookies ? JSON.parse(userFromCookies) : null;
   } catch (e) { 
+    console.error('Error parsing user data:', e);
     return null;
   } 
 }

@@ -4,6 +4,7 @@ import 'react-toastify/dist/ReactToastify.css';
 import api from '../../utils/axios';
 import PageMeta from '../../components/common/PageMeta';
 import Cookies from 'js-cookie';
+import AuthDebug from '../../components/debug/AuthDebug';
 import {
   ActivityChart,
   DashboardStats,
@@ -442,9 +443,7 @@ const Home: React.FC = () => {
         )}
       </div>
 
-
-
-    
+      <AuthDebug />
     </div>
   );
 };

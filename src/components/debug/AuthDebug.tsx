@@ -31,17 +31,10 @@ export default function AuthDebug() {
   }, []);
 
   return (
-    <div className="fixed bottom-4 right-4 bg-white border border-gray-300 rounded-lg p-4 shadow-lg max-w-md max-h-96 overflow-auto z-50">
-      <h3 className="font-bold text-sm mb-2">Auth Debug Info</h3>
-      <pre className="text-xs bg-gray-100 p-2 rounded overflow-auto">
+    <div className="w-full">
+      <pre className="text-xs bg-gray-100 dark:bg-gray-700 p-4 rounded overflow-auto max-h-80 text-gray-800 dark:text-gray-200">
         {JSON.stringify(debugInfo, null, 2)}
       </pre>
-      <button 
-        onClick={() => setDebugInfo({})}
-        className="mt-2 text-xs bg-red-500 text-white px-2 py-1 rounded"
-      >
-        Close
-      </button>
     </div>
   );
 }

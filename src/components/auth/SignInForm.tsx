@@ -33,11 +33,15 @@ export default function SignInForm() {
       const user = data?.user;
 
       if (token) {
+        // Store in both cookies and localStorage for compatibility
         Cookies.set("token", token, { expires: 7, secure: true, sameSite: "strict" });
+        localStorage.setItem("token", token);
       }
 
       if (user) {
+        // Store in both cookies and localStorage for compatibility
         Cookies.set("user", JSON.stringify(user), { expires: 7, secure: true, sameSite: "strict" });
+        localStorage.setItem("user", JSON.stringify(user));
       }
 
       // Ensure minimum 4 second loading time
@@ -45,6 +49,7 @@ export default function SignInForm() {
       const remaining = Math.max(0, minLoadingTime - elapsed);
       await new Promise(resolve => setTimeout(resolve, remaining));
 
+      // Navigate to dashboard/home instead of /app
       navigate("/app");
     } catch (err: unknown) {
       const message =

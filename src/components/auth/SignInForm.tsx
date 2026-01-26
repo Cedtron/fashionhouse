@@ -29,52 +29,40 @@ export default function SignInForm() {
       const res = await api.post("/auth/login", { email, password });
       const data = res.data;
 
-      // Debug: Log the entire response to see what we're getting
-      console.log("Login response:", res);
-      console.log("Login data:", data);
-      console.log("Token from response:", data?.access_token);
-      console.log("User from response:", data?.user);
-
       const token = data?.access_token || data?.token;
       const user = data?.user || (data?.username ? data : null);
 
       if (token) {
         // Store in both cookies and localStorage for compatibility
-        Cookies.set("token", token, { expires: 7, secure: true, sameSite: "strict" });
+        // Don't use secure flag in development
+        const isProduction = window.location.protocol === 'https:';
+        Cookies.set("token", token, { 
+          expires: 7, 
+          secure: isProduction, 
+          sameSite: "strict" 
+        });
         localStorage.setItem("token", token);
-        console.log("Token saved:", token);
-      } else {
-        console.error("No token found in response!");
       }
 
       if (user) {
         // Store in both cookies and localStorage for compatibility
-        Cookies.set("user", JSON.stringify(user), { expires: 7, secure: true, sameSite: "strict" });
+        // Don't use secure flag in development
+        const isProduction = window.location.protocol === 'https:';
+        Cookies.set("user", JSON.stringify(user), { 
+          expires: 7, 
+          secure: isProduction, 
+          sameSite: "strict" 
+        });
         localStorage.setItem("user", JSON.stringify(user));
-        console.log("User saved:", user);
-      } else {
-        console.error("No user found in response!");
-        console.log("Available keys in response:", Object.keys(data || {}));
-        
-        // Try to create a user object from available data
-        if (data?.username || data?.email) {
-          const fallbackUser = {
-            username: data.username,
-            email: data.email,
-            role: data.role,
-            id: data.id,
-            imagePath: data.imagePath
-          };
-          Cookies.set("user", JSON.stringify(fallbackUser), { expires: 7, secure: true, sameSite: "strict" });
-          localStorage.setItem("user", JSON.stringify(fallbackUser));
-          console.log("Fallback user created and saved:", fallbackUser);
-        }
       }
 
       // Ensure minimum 4 second loading time
       const elapsed = Date.now() - startTime;
       const remaining = Math.max(0, minLoadingTime - elapsed);
       await new Promise(resolve => setTimeout(resolve, remaining));
+
+      // Notify components that user has logged in
+      window.dispatchEvent(new CustomEvent('userLoggedIn'));
 
       // Navigate to dashboard/home instead of /app
       navigate("/app");

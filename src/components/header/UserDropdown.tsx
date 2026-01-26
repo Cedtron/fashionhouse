@@ -34,14 +34,44 @@ export default function UserDropdown() {
   const [user, setUser] = useState<UserType | null>(null);
 
   useEffect(() => {
-    const userData = Cookies.get("user");
-    if (userData) {
-      try {
-        setUser(JSON.parse(userData));
-      } catch (error) {
-        console.error("Error parsing user cookie:", error);
+    const loadUserData = () => {
+      const userData = Cookies.get("user");
+      if (userData) {
+        try {
+          setUser(JSON.parse(userData));
+        } catch (error) {
+          console.error("Error parsing user cookie:", error);
+        }
+      } else {
+        // Fallback to localStorage if cookies don't work
+        const userFromStorage = localStorage.getItem("user");
+        if (userFromStorage) {
+          try {
+            setUser(JSON.parse(userFromStorage));
+          } catch (error) {
+            console.error("Error parsing user from localStorage:", error);
+          }
+        }
       }
-    }
+    };
+
+    // Load initially
+    loadUserData();
+
+    // Listen for storage changes (when user logs in)
+    const handleStorageChange = () => {
+      loadUserData();
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Custom event for when login completes
+    window.addEventListener('userLoggedIn', handleStorageChange);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('userLoggedIn', handleStorageChange);
+    };
   }, []);
 
   const toggleDropdown = () => setIsOpen(!isOpen);

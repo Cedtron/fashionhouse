@@ -2,17 +2,27 @@ import { API_URL } from './environment';
 
 /**
  * Helper function to construct proper image URLs from backend paths
- * @param imagePath - The image path from the backend (e.g., "/uploads/image.jpg")
+ * @param imagePath - The image path from the backend (e.g., "/uploads/image.jpg" or "uploads/image.jpg")
  * @returns Complete image URL or null if no path provided
  */
 export function getImageUrl(imagePath: string | null | undefined): string | null {
   if (!imagePath) return null;
   
-  // Clean up the paths - remove leading slashes and ensure proper joining
-  const cleanApiUrl = API_URL.replace(/\/+$/, ''); // Remove trailing slashes
-  const cleanImagePath = imagePath.startsWith('/') ? imagePath : `/${imagePath}`;
+  // Clean up the API URL - remove trailing slashes
+  const cleanApiUrl = API_URL.replace(/\/+$/, '');
   
-  return `${cleanApiUrl}${cleanImagePath}`;
+  // Clean up the image path - ensure it starts with /
+  let cleanImagePath = imagePath.trim();
+  if (!cleanImagePath.startsWith('/')) {
+    cleanImagePath = `/${cleanImagePath}`;
+  }
+  
+  // Construct the full URL
+  const fullUrl = `${cleanApiUrl}${cleanImagePath}`;
+  
+  console.log('Image URL constructed:', { imagePath, cleanApiUrl, cleanImagePath, fullUrl });
+  
+  return fullUrl;
 }
 
 /**

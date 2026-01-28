@@ -6,7 +6,16 @@ import { API_URL } from './environment';
  * @returns Complete image URL or null if no path provided
  */
 export function getImageUrl(imagePath: string | null | undefined): string | null {
-  if (!imagePath) return null;
+  if (!imagePath) {
+    console.log('getImageUrl: No image path provided');
+    return null;
+  }
+  
+  // If it's already a full URL, return as is
+  if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+    console.log('getImageUrl: Already full URL:', imagePath);
+    return imagePath;
+  }
   
   // Clean up the API URL - remove trailing slashes
   const cleanApiUrl = API_URL.replace(/\/+$/, '');
@@ -20,7 +29,13 @@ export function getImageUrl(imagePath: string | null | undefined): string | null
   // Construct the full URL
   const fullUrl = `${cleanApiUrl}${cleanImagePath}`;
   
-  console.log('Image URL constructed:', { imagePath, cleanApiUrl, cleanImagePath, fullUrl });
+  console.log('getImageUrl constructed:', { 
+    originalPath: imagePath, 
+    apiUrl: API_URL,
+    cleanApiUrl, 
+    cleanImagePath, 
+    finalUrl: fullUrl 
+  });
   
   return fullUrl;
 }

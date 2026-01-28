@@ -4,6 +4,7 @@ import 'react-toastify/dist/ReactToastify.css';
 import api from '../utils/axios';
 import PageMeta from '../components/common/PageMeta';
 import Cookies from 'js-cookie';
+import { getImageUrl } from '../utils/imageUtils';
 import {
   FiSearch,
   FiPackage,
@@ -581,9 +582,12 @@ export default function StockReduction() {
                           {stock.imagePath && (
                             <img
                               className="object-cover w-12 h-12 rounded"
-
-                              src={stock.imagePath.startsWith('http') ? stock.imagePath : `${api.defaults.baseURL}${stock.imagePath}`}
+                              src={getImageUrl(stock.imagePath)}
                               alt={stock.product}
+                              onError={(e) => {
+                                console.error('Failed to load stock image:', getImageUrl(stock.imagePath));
+                                e.currentTarget.style.display = 'none';
+                              }}
                             />
                           )}
                           <div className="flex-1">

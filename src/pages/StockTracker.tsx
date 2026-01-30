@@ -584,10 +584,6 @@ export default function StockReduction() {
                               className="object-cover w-12 h-12 rounded"
                               src={getImageUrl(stock.imagePath)}
                               alt={stock.product}
-                              onError={(e) => {
-                                console.error('Failed to load stock image:', getImageUrl(stock.imagePath));
-                                e.currentTarget.style.display = 'none';
-                              }}
                             />
                           )}
                           <div className="flex-1">

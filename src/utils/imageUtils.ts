@@ -7,13 +7,11 @@ import { API_URL } from './environment';
  */
 export function getImageUrl(imagePath: string | null | undefined): string | null {
   if (!imagePath) {
-    console.log('🖼️ getImageUrl: No image path provided');
     return null;
   }
   
   // If it's already a full URL, return as is
   if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
-    console.log('🖼️ getImageUrl: Already full URL:', imagePath);
     return imagePath;
   }
   
@@ -29,17 +27,6 @@ export function getImageUrl(imagePath: string | null | undefined): string | null
   // Construct the full URL
   const fullUrl = `${cleanApiUrl}${cleanImagePath}`;
   
-  console.log('🖼️ IMAGE URL CONSTRUCTED:', { 
-    originalPath: imagePath, 
-    backendServer: API_URL,
-    cleanApiUrl, 
-    cleanImagePath, 
-    finalUrl: fullUrl 
-  });
-  
-  // Test if the URL is accessible
-  console.log('🔗 Try this URL in browser:', fullUrl);
-  
   return fullUrl;
 }
 
@@ -50,9 +37,7 @@ export function getImageUrl(imagePath: string | null | undefined): string | null
  */
 export function handleImageError(event: React.SyntheticEvent<HTMLImageElement>, fallbackElement?: HTMLElement | null) {
   const img = event.currentTarget;
-  console.error('❌ FAILED TO LOAD IMAGE:', img.src);
-  console.error('❌ This means the backend is not serving static files from /uploads');
-  console.error('❌ Backend needs to configure static file serving');
+  console.error('Failed to load image:', img.src);
   
   // Hide the image
   img.style.display = 'none';

@@ -89,30 +89,26 @@ export default function UserDropdown() {
       >
         <span className="mr-3 overflow-hidden rounded-full h-11 w-11">
           {user?.imagePath ? (
-            <>
-              <img 
-                src={getImageUrl(user.imagePath)}
-                alt={user.username}
-                className="w-full h-full object-cover"
-                onError={(e) => {
-                  console.error('Failed to load user image:', getImageUrl(user.imagePath));
-                  // Hide the image and show initials instead
-                  e.currentTarget.style.display = 'none';
-                  const fallback = e.currentTarget.nextElementSibling as HTMLElement;
-                  if (fallback) {
-                    fallback.classList.remove('hidden');
-                  }
-                }}
-              />
-              <div className={`w-full h-full flex items-center justify-center text-white font-semibold text-lg ${userColor} hidden`}>
-                {userInitial}
-              </div>
-            </>
-          ) : (
-            <div className={`w-full h-full flex items-center justify-center text-white font-semibold text-lg ${userColor}`}>
-              {userInitial}
-            </div>
-          )}
+            <img 
+              src={getImageUrl(user.imagePath)}
+              alt={user.username}
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                // Hide the image and show initials instead
+                e.currentTarget.style.display = 'none';
+                const fallback = e.currentTarget.nextElementSibling as HTMLElement;
+                if (fallback) {
+                  fallback.style.display = 'flex';
+                }
+              }}
+            />
+          ) : null}
+          <div 
+            className={`w-full h-full flex items-center justify-center text-white font-semibold text-lg ${userColor}`}
+            style={{ display: user?.imagePath ? 'none' : 'flex' }}
+          >
+            {userInitial}
+          </div>
         </span>
 
         <span className="block mr-1 font-medium text-theme-sm">

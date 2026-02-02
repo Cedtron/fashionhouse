@@ -1,8 +1,8 @@
 import { API_URL } from './environment';
 
 /**
- * Helper function to construct proper image URLs from backend paths
- * @param imagePath - The image path from the backend (e.g., "/uploads/image.jpg" or "uploads/image.jpg")
+ * Helper function to construct proper image URLs
+ * @param imagePath - The image path from the backend (S3 URL or local path)
  * @returns Complete image URL or null if no path provided
  */
 export function getImageUrl(imagePath: string | null | undefined): string | null {
@@ -10,22 +10,26 @@ export function getImageUrl(imagePath: string | null | undefined): string | null
     return null;
   }
   
+  // If it's already a full S3 URL, return as is
+  if (imagePath.startsWith('https://') && imagePath.includes('amazonaws.com')) {
+    console.log('✅ S3 URL detected:', imagePath);
+    return imagePath;
+  }
+  
   // If it's already a full URL, return as is
   if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
     return imagePath;
   }
   
-  // Clean up the API URL - remove trailing slashes
+  // Legacy support: construct URL for old local paths
   const cleanApiUrl = API_URL.replace(/\/+$/, '');
-  
-  // Clean up the image path - ensure it starts with /
   let cleanImagePath = imagePath.trim();
   if (!cleanImagePath.startsWith('/')) {
     cleanImagePath = `/${cleanImagePath}`;
   }
   
-  // Construct the full URL
   const fullUrl = `${cleanApiUrl}${cleanImagePath}`;
+  console.log('⚠️ Legacy local path detected, constructing URL:', fullUrl);
   
   return fullUrl;
 }

@@ -84,18 +84,18 @@ const AppHeader: React.FC<{ onChatToggle?: () => void }> = ({ onChatToggle }) =>
             {/* Cross Icon */}
           </button>
 
-          <Link to="/" className="lg:hidden">
-            <img
-              className="dark:hidden"
-              src="images/logo/logo.png"
-              alt="Logo"
-            />
-            <img
-              className="hidden dark:block"
-              src="./images/logo/logo-dark.png"
-              alt="Logo"
-            />
-          </Link>
+   <Link to="/" className="lg:hidden">
+  <img
+    className="dark:hidden w-3/4 max-w-[150px]"
+    src="images/logo/logo.png"
+    alt="Logo"
+  />
+  <img
+    className="hidden dark:block w-3/4 max-w-[150px]"
+    src="./images/logo/logo-dark.png"
+    alt="Logo"
+  />
+</Link>
 
           <button
             onClick={toggleApplicationMenu}

@@ -7,15 +7,15 @@ import api from "../../utils/axios";
 
 interface StepFormData {
   email: string;
-  passwordHint: string;
-  code: string;
+  passwordhint: string;
   newPassword: string;
   confirmPassword: string;
 }
 
-type Step = "email" | "passwordHint" | "verification" | "newPassword";
+type Step = 1 | 2 | 3;
 
 export default function ForgotPasswordForm() {
+  const [step, sunction ForgotPasswordForm() {
   const [step, setStep] = useState<Step>("email");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);

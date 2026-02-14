@@ -39,10 +39,25 @@ export default function ImageSearchModal({ isOpen, onClose, onSearch, isSearchin
 
   const openCamera = async () => {
     try {
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' }, // Use back camera on mobile
+      // Request camera permission with constraints
+      const constraints = {
+        video: { 
+          facingMode: 'environment', // Use back camera on mobile
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        },
         audio: false,
-      });
+      };
+
+      // Check if browser supports getUserMedia
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        toast.error('Camera not supported on this browser. Please use Chrome, Firefox, or Safari.');
+        return;
+      }
+
+      toast.info('Requesting camera access... Please allow camera permission.');
+      
+      const mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
       
       setStream(mediaStream);
       setIsCameraOpen(true);
@@ -51,10 +66,20 @@ export default function ImageSearchModal({ isOpen, onClose, onSearch, isSearchin
         videoRef.current.srcObject = mediaStream;
       }
       
-      toast.success('Camera opened! Click "Capture Photo" to take a picture');
-    } catch (error) {
+      toast.success('📸 Camera ready! Click "Capture Photo" to take a picture');
+    } catch (error: any) {
       console.error('Error accessing camera:', error);
-      toast.error('Failed to access camera. Please check permissions.');
+      
+      // Provide specific error messages
+      if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+        toast.error('Camera access denied. Please allow camera permission in your browser settings and try again.');
+      } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+        toast.error('No camera found on this device.');
+      } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
+        toast.error('Camera is already in use by another application.');
+      } else {
+        toast.error('Failed to access camera. Please check your browser permissions.');
+      }
     }
   };
 

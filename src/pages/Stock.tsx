@@ -4,6 +4,7 @@ import { toast, ToastContainer } from "react-toastify";
 import { FiSearch, FiEdit, FiTrash2, FiPlus, FiX, FiEye, FiCopy, FiDroplet, FiCamera, FiImage } from "react-icons/fi";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import PageMeta from "../components/common/PageMeta";
+import ImageSearchModal from "../components/ImageSearchModal";
 import api from '../utils/axios';
 import Cookies from "js-cookie";
 import { getImageUrl } from '../utils/imageUtils';
@@ -528,16 +529,11 @@ export default function StockPage() {
   };
 
   // Handle search by image
-  const handleSearchByImage = async () => {
-    if (!searchImageFile) {
-      toast.error("Please upload an image to search");
-      return;
-    }
-
+  const handleSearchByImage = async (file: File) => {
     setIsSearching(true);
     try {
       const formData = new FormData();
-      formData.append('image', searchImageFile);
+      formData.append('image', file);
 
       const response = await api.post('/stock/search-by-photo', formData, {
         headers: {
@@ -545,18 +541,37 @@ export default function StockPage() {
         },
       });
 
-      setSearchResults(response.data);
+      console.log('Search response:', response.data);
       
-      if (response.data.length === 0) {
-        toast.info("No similar products found");
+      // Extract results from response
+      const results = response.data.results || [];
+      
+      if (results.length === 0) {
+        toast.info("No matching products found. Try a different image!");
+        setSearchResults([]);
       } else {
-        const method = response.data[0]?.searchMethod;
-        const methodText = method === 'rekognition' ? 'Amazon Rekognition' : 'hash-based search';
-        toast.success(`Found ${response.data.length} similar products using ${methodText}!`);
+        // Extract stock items from results
+        const matchedStocks = results.map((result: any) => result.stock);
+        setSearchResults(matchedStocks);
+        
+        // Close the search modal
+        closeSearchModal();
+        
+        // Show success message with sweet words
+        const sweetMessages = [
+          `🎯 Perfect match! Found ${results.length} similar ${results.length === 1 ? 'product' : 'products'}!`,
+          `✨ Amazing! Discovered ${results.length} matching ${results.length === 1 ? 'item' : 'items'} for you!`,
+          `🎉 Great news! Located ${results.length} similar ${results.length === 1 ? 'product' : 'products'}!`,
+          `💫 Wonderful! Found ${results.length} ${results.length === 1 ? 'match' : 'matches'} in your inventory!`,
+        ];
+        const randomMessage = sweetMessages[Math.floor(Math.random() * sweetMessages.length)];
+        toast.success(randomMessage);
       }
     } catch (error: any) {
       console.error('Error searching by image:', error);
-      toast.error(error.response?.data?.message || "Failed to search by image");
+      const errorMessage = error.response?.data?.message || "Oops! Image search failed. Please try again.";
+      toast.error(errorMessage);
+      setSearchResults([]);
     } finally {
       setIsSearching(false);
     }
@@ -639,11 +654,13 @@ export default function StockPage() {
     setViewModalOpen(true);
   };
 
-  // Filter stocks based on search term
-  const filteredStocks = stocks.filter(item =>
-    item.product.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.stockId.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Filter stocks based on search term or search results
+  const filteredStocks = searchResults.length > 0 
+    ? searchResults // Show only search results when available
+    : stocks.filter(item =>
+        item.product.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.stockId.toLowerCase().includes(searchTerm.toLowerCase())
+      );
 
   return (
     <div>
@@ -676,10 +693,20 @@ export default function StockPage() {
           </div>
 
           <div className="flex items-center gap-2">
+            {searchResults.length > 0 && (
+              <div className="px-3 py-2 text-sm bg-green-100 text-green-700 rounded-md dark:bg-green-900/30 dark:text-green-300">
+                Showing {searchResults.length} search {searchResults.length === 1 ? 'result' : 'results'}
+              </div>
+            )}
+            
             <button
-              onClick={() => fetchStocks()}
+              onClick={() => {
+                fetchStocks();
+                setSearchResults([]);
+                setSearchTerm("");
+              }}
               className="px-3 py-2 text-sm bg-gray-100 rounded-md hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600"
-              title="Clear filters"
+              title="Clear filters and search results"
             >
               Clear
             </button>
@@ -1527,6 +1554,17 @@ export default function StockPage() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+      {/* Image Search Modal */}
+      <ImageSearchModal
+        isOpen={searchImageModalOpen}
+        onClose={closeSearchModal}
+        onSearch={handleSearchByImage}
+        isSearching={isSearching}
+      />
     </div>
   );
 }

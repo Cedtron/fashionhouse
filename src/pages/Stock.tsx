@@ -1553,18 +1553,15 @@ export default function StockPage() {
             </div>
           </div>
         )}
-      </div>
-    </div>
-  );
-}
 
-      {/* Image Search Modal */}
-      <ImageSearchModal
-        isOpen={searchImageModalOpen}
-        onClose={closeSearchModal}
-        onSearch={handleSearchByImage}
-        isSearching={isSearching}
-      />
+        {/* Image Search Modal */}
+        <ImageSearchModal
+          isOpen={searchImageModalOpen}
+          onClose={closeSearchModal}
+          onSearch={handleSearchByImage}
+          isSearching={isSearching}
+        />
+      </div>
     </div>
   );
 }

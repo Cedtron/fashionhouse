@@ -5,6 +5,7 @@ import api from '../utils/axios';
 import PageMeta from '../components/common/PageMeta';
 import Cookies from 'js-cookie';
 import { getImageUrl } from '../utils/imageUtils';
+import { compressImageForSearch } from '../utils/imageCompression';
 import {
   FiSearch,
   FiPackage,

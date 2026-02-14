@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { FiX, FiCamera, FiUpload, FiSearch } from 'react-icons/fi';
 import { toast } from 'react-toastify';
+import { compressImageForSearch } from '../utils/imageCompression';
 
 interface ImageSearchModalProps {
   isOpen: boolean;
@@ -122,8 +123,8 @@ export default function ImageSearchModal({ isOpen, onClose, onSearch, isSearchin
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        toast.error('Image size should be less than 5MB');
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error('Image size should be less than 10MB');
         return;
       }
 
@@ -142,7 +143,19 @@ export default function ImageSearchModal({ isOpen, onClose, onSearch, isSearchin
       return;
     }
 
-    await onSearch(imageFile);
+    try {
+      // Compress image before searching
+      toast.info('Compressing image...');
+      const compressedFile = await compressImageForSearch(imageFile);
+      
+      console.log(`Original: ${(imageFile.size / 1024).toFixed(2)}KB → Compressed: ${(compressedFile.size / 1024).toFixed(2)}KB`);
+      
+      await onSearch(compressedFile);
+    } catch (error) {
+      console.error('Error compressing image:', error);
+      toast.error('Failed to compress image. Using original...');
+      await onSearch(imageFile);
+    }
   };
 
   const handleClose = () => {

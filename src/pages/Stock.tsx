@@ -8,6 +8,7 @@ import ImageSearchModal from "../components/ImageSearchModal";
 import api from '../utils/axios';
 import Cookies from "js-cookie";
 import { getImageUrl } from '../utils/imageUtils';
+import { compressImageForStorage } from '../utils/imageCompression';
 
 interface Category {
   id: number;
@@ -473,9 +474,15 @@ export default function StockPage() {
       // If there's an image file, upload it using the dedicated endpoint
       if (imageFile && savedStock && savedStock.id) {
         try {
-          console.log(`[onSubmit] Uploading image for stock ${savedStock.id}`, imageFile);
+          console.log(`[onSubmit] Compressing and uploading image for stock ${savedStock.id}`);
+          
+          // Compress image before uploading
+          toast.info('Compressing image...');
+          const compressedImage = await compressImageForStorage(imageFile);
+          console.log(`Image compressed: ${(imageFile.size / 1024).toFixed(2)}KB → ${(compressedImage.size / 1024).toFixed(2)}KB`);
+          
           const fd = new FormData();
-          fd.append('image', imageFile);
+          fd.append('image', compressedImage);
 
           // Don't set Content-Type header; let axios/browser set multipart boundary
           const uploadRes = await api.post(`/stock/${savedStock.id}/image`, fd, {

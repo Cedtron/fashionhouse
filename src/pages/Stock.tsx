@@ -557,8 +557,11 @@ export default function StockPage() {
         toast.info("No matching products found. Try a different image!");
         setSearchResults([]);
       } else {
-        // Extract stock items from results
-        const matchedStocks = results.map((result: any) => result.stock);
+        // Extract stock items from results and add similarity info
+        const matchedStocks = results.map((result: any) => ({
+          ...result.stock,
+          similarity: result.similarity, // Add similarity score to stock object
+        }));
         setSearchResults(matchedStocks);
         
         // Close the search modal
@@ -759,7 +762,14 @@ export default function StockPage() {
                 {filteredStocks.map((item) => (
                   <tr key={item.id} className="border-t hover:bg-gray-50 dark:hover:bg-gray-800/50 dark:border-gray-700">
                     <td className="p-3 font-mono font-semibold text-coffee-600">
-                      {item.stockId}
+                      <div className="flex flex-col gap-1">
+                        <span>{item.stockId}</span>
+                        {searchResults.length > 0 && item.similarity && (
+                          <span className="px-2 py-1 text-xs font-semibold text-green-700 bg-green-100 rounded-full dark:bg-green-900/30 dark:text-green-300 w-fit">
+                            {item.similarity}% match
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="p-3">
                       <div className="flex flex-col">

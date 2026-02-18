@@ -37,6 +37,7 @@ interface Stock {
   shades: Shade[];
   createdAt: string;
   updatedAt: string;
+  similarity?: number; // For image search results
 }
 
 interface StockFormData {
@@ -800,7 +801,7 @@ export default function StockPage() {
                         <div className="text-xs">
                           <span className="font-semibold">{item.shades.length} shades</span>
                           <div className="flex flex-wrap gap-1 mt-1">
-                            {item.shades.slice(0, 3).map((shade, idx) => (
+                            {item.shades.slice(0, 3).map((shade: Shade, idx: number) => (
                               <div
                                 key={idx}
                                 className="w-3 h-3 border rounded-sm"

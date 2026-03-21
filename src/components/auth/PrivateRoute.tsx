@@ -8,10 +8,8 @@ interface PrivateRouteProps {
 }
 
 export default function PrivateRoute({ children }: PrivateRouteProps) {
-  const tokenFromCookies = Cookies.get("token");
-  const tokenFromStorage = localStorage.getItem("token");
-  
-  const isLoggedIn = tokenFromCookies || tokenFromStorage;
+  const isLoggedIn =
+    localStorage.getItem("token") || Cookies.get("token");
 
   return isLoggedIn ? children : <Navigate to="/signin" replace />;
 }

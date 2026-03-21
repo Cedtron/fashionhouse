@@ -194,40 +194,45 @@ const StockSummary = () => {
     }
   };
 
-  const exportToCSV = () => {
+  const exportToExcel = () => {
     if (!filteredMovements.length) return;
-    const headers = [
-      "Stock ID",
-      "Product",
-      "Category",
-      "Current Stock",
-      "Total Added",
-      "Total Removed",
-      "Net Change",
-      "Has Shades",
-      "Total Shades",
-      "Updated At",
-    ];
-    const rows = filteredMovements.map((item) => [
-      item.stockId,
-      item.product,
-      item.category,
-      item.currentStock,
-      item.totalAdded,
-      item.totalRemoved,
-      item.netChange,
-      item.hasShades ? "Yes" : "No",
-      item.shadeDetails.totalShades,
-      new Date(item.updatedAt).toLocaleString(),
-    ]);
-    const csv = [headers, ...rows]
-      .map((row) => row.map((col) => `"${col}"`).join(","))
-      .join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+
+    const headers = ["Stock ID", "Product", "Category", "Current Stock", "Total Added", "Total Removed", "Net Change", "Has Shades", "Shade Details", "Updated At"];
+    const rows = filteredMovements
+      .map(
+        (item) => `
+          <tr>
+            <td>${item.stockId}</td>
+            <td>${item.product}</td>
+            <td>${item.category}</td>
+            <td>${item.currentStock}</td>
+            <td>${item.totalAdded}</td>
+            <td>${item.totalRemoved}</td>
+            <td>${item.netChange}</td>
+            <td>${item.hasShades ? "Yes" : "No"}</td>
+            <td>${item.hasShades ? item.shadeDetails.shadeQuantities.map((shade) => `${shade.colorName} (${shade.quantity})`).join(", ") : "No shades"}</td>
+            <td>${new Date(item.updatedAt).toLocaleString()}</td>
+          </tr>`,
+      )
+      .join("");
+
+    const html = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">
+        <head><meta charset="UTF-8" /></head>
+        <body>
+          <table>
+            <thead><tr>${headers.map((header) => `<th>${header}</th>`).join("")}</tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </body>
+      </html>
+    `;
+
+    const blob = new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8;" });
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.setAttribute("download", `stock-summary-${new Date().toISOString().split("T")[0]}.csv`);
+    link.setAttribute("download", `stock-summary-${new Date().toISOString().split("T")[0]}.xls`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -383,11 +388,11 @@ const StockSummary = () => {
             </select>
 
             <button
-              onClick={exportToCSV}
+              onClick={exportToExcel}
               className="flex items-center gap-2 px-4 py-2 text-white rounded-lg bg-coffee-600 hover:bg-coffee-700"
             >
               <FiDownload size={16} />
-              Export CSV
+              Export Excel
             </button>
           </div>
         </div>

@@ -17,7 +17,7 @@ import Home from "./pages/Dashboard/Home";
 import Category from "./pages/Category";
 import SubCategory from "./pages/SubCategory";
 import Products from "./pages/Products";
-import Reports from "./pages/Reports";
+
 import Settings from "./pages/settings";
 import Suppliers from "./pages/Supplier";
 import StockPage from "./pages/Stock";
@@ -29,15 +29,16 @@ import PrivateRoute from "./components/auth/PrivateRoute";
 import StockHistory from "./pages/StockHistory";
 import StockSummary from "./pages/StockSummary";
 import NotificationsPage from "./pages/Notifications";
+import SimpleReport from "./pages/SimpleReport";
 
 export default function App() {
   return (
-    <Router>
+    <Router >
       <ScrollToTop />
 
       <Routes>
         {/* Redirect root → /signin */}
-        <Route path="/" element={<Navigate to="/signin" replace />} />
+       <Route path="/" element={<Navigate to="/signin" replace />} />
 
         {/* Public auth pages */}
         <Route path="/signin" element={<SignIn />} />
@@ -62,6 +63,7 @@ export default function App() {
           <Route path="categories" element={<SubCategory />} />
           <Route path="products" element={<Products />} />
           <Route path="report" element={<StockSummary />} />
+          <Route path="report/simple" element={<SimpleReport />} />
           {/* <Route path="report" element={<Reports />} /> */}
 
            <Route path="notifications" element={<NotificationsPage />} />

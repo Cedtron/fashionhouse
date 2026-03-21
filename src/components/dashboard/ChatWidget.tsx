@@ -11,6 +11,8 @@ interface ChatMessage {
   text: string;
   sender: 'user' | 'assistant';
   timestamp: Date;
+  reactions?: string[];
+  pinned?: boolean;
 }
 
 // --------------------------------------
@@ -45,6 +47,7 @@ const ChatWidget = ({
   );
 
   const [isTyping, setIsTyping] = useState(false);
+  const [openReactionsFor, setOpenReactionsFor] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -71,6 +74,8 @@ const ChatWidget = ({
       text: newMessage,
       sender: "user",
       timestamp: new Date(),
+      reactions: [],
+      pinned: false,
     };
 
     sendSound.play();
@@ -126,11 +131,13 @@ Here are my commands:
 - open users
 - notifications
 
-📌 **Data Tasks**
+📌 **Data & Insights**
 - list categories
 - low stock
 - how many stocks?
-- stock summary
+- inventory value
+- category stats
+- top suppliers
 
 📌 **Admin Commands**
 - clear chat
@@ -141,6 +148,8 @@ Here are my commands:
 - tell me a joke
 - advice
 - who are you?
+
+++ message actions from UI: pin, copy, react
 
 Ask me anything!
         `;
@@ -185,7 +194,7 @@ Ask me anything!
       }
 
       // --------------------------------------
-      // FUN COMMANDS
+      // FUN / GREETINGS
       // --------------------------------------
       else if (text === "tell me a joke") {
         reply = "Why did the inventory system go to school? To improve its *stock* knowledge! 🤣";
@@ -197,6 +206,14 @@ Ask me anything!
 
       else if (text === "who are you?") {
         reply = "I'm Bubble — your cute mini assistant inside Fashion House 😄";
+      }
+
+      else if (["hi", "hello", "hey", "good morning", "good afternoon", "good evening", "yo"].some((w) => text === w || text.startsWith(w + " ") || text.includes(" " + w + " "))) {
+        reply = "Hey there! 👋 I’m Bubble. How can I help you with Fashion House today?";
+      }
+
+      else if (text.includes("how are you")) {
+        reply = "I’m doing great, thank you! 😊 Ready to help with inventory, reports, and much more.";
       }
 
       // --------------------------------------
@@ -215,12 +232,35 @@ Ask me anything!
         reply = `You have **${low.length}** low stock items.`;
       }
 
+      else if (text === "inventory value") {
+        const res = await api.get("/stock");
+        const data = res.data;
+        const totalValue = data.reduce((sum: number, s: any) => {
+          const qty = Number(s.quantity || 0);
+          const price = Number(s.price || s.cost || 0);
+          return sum + qty * price;
+        }, 0);
+        reply = `Total inventory value is **$${totalValue.toFixed(2)}**.`;
+      }
+
+      else if (text === "top suppliers") {
+        const res = await api.get("/suppliers");
+        const data = res.data;
+        const names = data?.slice(0, 5).map((s: any) => s.name || s.company || "Unknown");
+        reply = `Top suppliers: ${names.join(", ")}`;
+      }
+
+      else if (text === "category stats") {
+        const res = await api.get("/categories");
+        const data = res.data;
+        reply = `You have **${data.length}** categories. Most used: ${data[0]?.name || 'N/A'}`;
+      }
+
       else if (text === "list categories") {
         const res = await api.get("/categories");
         const data = res.data;
         reply = `Categories:\n- ${data.map((c: any) => c.name).join("\n- ")}`;
       }
-
 
       else {
         reply = "Hmm... I didn't understand that 😅 Try typing **help** to see what I can do!";
@@ -234,6 +274,8 @@ Ask me anything!
         text: reply,
         sender: "assistant",
         timestamp: new Date(),
+        reactions: [],
+        pinned: false,
       };
 
       setMessages((prev) => [...prev, botMsg]);
@@ -242,7 +284,54 @@ Ask me anything!
   };
 
   // --------------------------------------
+  // MESSAGE ACTIONS (copy, reaction, pin)
+  // --------------------------------------
+  const toggleReaction = (id: string, emoji: string) => {
+    setMessages((prev) =>
+      prev.map((m) => {
+        if (m.id !== id) return m;
+        const reactions = m.reactions || [];
+        if (reactions.includes(emoji)) {
+          return { ...m, reactions: reactions.filter((r) => r !== emoji) };
+        }
+        return { ...m, reactions: [...reactions, emoji] };
+      })
+    );
+  };
+
+  const togglePin = (id: string) => {
+    setMessages((prev) =>
+      prev.map((m) => (m.id === id ? { ...m, pinned: !m.pinned } : m))
+    );
+  };
+
+  const copyMessage = async (text: string) => {
+    if (navigator.clipboard) {
+      await navigator.clipboard.writeText(text);
+      // Could add a toast here if you have a notification system
+    }
+  };
+
+  const exportMessages = () => {
+    const blob = new Blob([JSON.stringify(messages, null, 2)], {
+      type: 'application/json',
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'bubble_messages.json';
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const clearChat = () => {
+    localStorage.removeItem('bubble_messages');
+    setMessages([]);
+  };
+
+  // --------------------------------------
   // ENTER KEY SHORTCUT
+  // --------------------------------------
   // --------------------------------------
   const handleEnter = (e: any) => {
     if (e.key === "Enter") {
@@ -270,33 +359,106 @@ Ask me anything!
         <div className="absolute right-0 overflow-hidden bg-white border border-gray-200 shadow-2xl bottom-16 w-80 sm:w-96 rounded-xl">
 
           {/* HEADER */}
-          <div className="flex items-center gap-3 p-4 text-white bg-gradient-to-r from-blue-600 to-purple-600">
-            <FiBarChart2 />
-            <div>
-              <h3 className="font-bold">Bubble Assistant</h3>
-              <p className="text-xs">Fashion House Mini Assistant</p>
+          <div className="flex items-center justify-between p-3 text-white bg-gradient-to-r from-blue-600 to-purple-600">
+            <div className="flex items-center gap-2">
+              <FiBarChart2 />
+              <div>
+                <h3 className="font-bold">Bubble Assistant</h3>
+                <p className="text-xs">Fashion House Mini Assistant</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={clearChat}
+                className="text-[11px] px-2 py-1 bg-white/20 rounded-lg hover:bg-white/35"
+              >
+                Clear
+              </button>
+              <button
+                onClick={exportMessages}
+                className="text-[11px] px-2 py-1 bg-white/20 rounded-lg hover:bg-white/35"
+              >
+                Export
+              </button>
+              <button
+                onClick={() => setNewMessage('/help')}
+                className="text-[11px] px-2 py-1 bg-white/20 rounded-lg hover:bg-white/35"
+              >
+                /Help
+              </button>
             </div>
           </div>
 
           {/* MESSAGES */}
           <div className="p-4 overflow-y-auto h-80 bg-gray-50">
 
-            {messages.map((msg) => (
-              <div key={msg.id} className={`mb-3 ${msg.sender === "user" ? "text-right" : "text-left"}`}>
-                <div
-                  className={`inline-block px-4 py-2 rounded-2xl max-w-[80%] ${
-                    msg.sender === "user"
-                      ? "bg-blue-600 text-white rounded-br-none"
-                      : "bg-white border rounded-bl-none text-gray-800"
-                  }`}
-                >
-                  <div className="text-sm whitespace-pre-wrap">{msg.text}</div>
-                  <div className="text-[10px] mt-1 opacity-70">
-                    {msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+            {messages
+              .slice()
+              .sort((a, b) => (a.pinned === b.pinned ? 0 : a.pinned ? -1 : 1))
+              .map((msg) => (
+                <div key={msg.id} className={`mb-3 ${msg.sender === "user" ? "text-right" : "text-left"}`}>
+                  <div className="flex items-center justify-between gap-2 text-[11px] mb-1">
+                    <span className="opacity-70">{msg.sender === 'user' ? 'You' : 'Bubble'}</span>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => togglePin(msg.id)}
+                        className="px-2 py-0.5 rounded-md bg-gray-200 hover:bg-gray-300"
+                        title={msg.pinned ? 'Unpin conversation' : 'Pin conversation'}
+                      >
+                        {msg.pinned ? '📌' : '📍'}
+                      </button>
+                      <button
+                        onClick={() => copyMessage(msg.text)}
+                        className="px-2 py-0.5 rounded-md bg-gray-200 hover:bg-gray-300"
+                        title="Copy message"
+                      >
+                        Copy
+                      </button>
+                      <button
+                        onClick={() => setOpenReactionsFor(openReactionsFor === msg.id ? null : msg.id)}
+                        className="px-2 py-0.5 rounded-md bg-gray-200 hover:bg-gray-300"
+                        title="Open reactions"
+                      >
+                        React
+                      </button>
+                    </div>
+                  </div>
+                  <div
+                    className={`inline-block px-4 py-2 rounded-2xl max-w-[80%] ${
+                      msg.sender === "user"
+                        ? "bg-blue-600 text-white rounded-br-none"
+                        : "bg-white border rounded-bl-none text-gray-800"
+                    } ${msg.pinned ? 'ring-2 ring-yellow-300' : ''}`}
+                  >
+                    <div className="text-sm whitespace-pre-wrap">{msg.text}</div>
+                    <div className="text-[10px] mt-1 opacity-70">
+                      {msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                    </div>
+                    {openReactionsFor === msg.id && (
+                      <div className="mt-2 flex items-center gap-1">
+                        {['👍', '❤️', '🎉', '🚀', '✅', '❗'].map((emoji) => (
+                          <button
+                            key={emoji}
+                            onClick={() => {
+                              toggleReaction(msg.id, emoji);
+                              setOpenReactionsFor(null);
+                            }}
+                            className={`text-[12px] px-1 rounded-md ${msg.reactions?.includes(emoji) ? 'bg-slate-200' : 'bg-white/70'} hover:bg-slate-100`}
+                            title={`React ${emoji}`}
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {msg.reactions && msg.reactions.length > 0 && (
+                      <div className="mt-2 text-[11px]">
+                        Reactions: {msg.reactions.join(' ')}
+                      </div>
+                    )}
                   </div>
                 </div>
-              </div>
-            ))}
+              ))}
 
             {isTyping && (
               <div className="mb-3 text-left">

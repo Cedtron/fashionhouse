@@ -38,7 +38,15 @@ const navItems: NavItem[] = [
   { iconFilled: <BsBasket2Fill />, iconOutline: <BsBasket2 />, name: "Stock Management", path: "/app/stock-management" },
   { iconFilled: <IoAlbums />, iconOutline: <IoAlbumsOutline />, name: "Categories", path: "/app/categories" },
   { iconFilled: <IoDocumentText />, iconOutline: <IoDocumentTextOutline />, name: "Suppliers", path: "/app/suppliers" },
-  { iconFilled: <IoPieChart />, iconOutline: <IoPieChartOutline />, name: "Reports", path: "/app/report" },
+  {
+    iconFilled: <IoPieChart />,
+    iconOutline: <IoPieChartOutline />,
+    name: "Reports",
+    subItems: [
+      { name: "Stock Summary", path: "/app/report" },
+      { name: "Simple Report", path: "/app/report/simple" },
+    ],
+  },
   {
     iconFilled: <IoSettings />,
     iconOutline: <IoSettingsOutline />,
@@ -195,7 +203,7 @@ export default function AppSidebar() {
 
   return (
     <aside
-      className={`fixed top-0 mt-16 lg:mt-0 h-screen bg-white dark:bg-gray-900 transition-all border-r z-40
+      className={`fixed top-0 mt-16 lg:mt-0 h-screen bg-white dark:bg-gray-900 transition-all border-r 
         ${isExpanded || isMobileOpen || isHovered ? "w-[290px]" : "w-[90px]"} 
         ${isMobileOpen ? "translate-x-0" : "-translate-x-full"} 
         lg:translate-x-0`}

@@ -1,38 +1,18 @@
-import Cookies from 'js-cookie';
+import Cookies from "js-cookie";
 
-export function getToken() { 
-  if (typeof window === 'undefined') return null;
-  
-  // Check localStorage first, then cookies
-  const tokenFromStorage = localStorage.getItem('token');
-  if (tokenFromStorage) return tokenFromStorage;
-  
-  // Check cookies
-  return Cookies.get('token') || null;
+export function getToken() {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem("token") || Cookies.get("token") || null;
 }
 
-export function getUser() { 
-  if (typeof window === 'undefined') return null;
-  
+export function getUser() {
   try {
-    // Check localStorage first
-    const userFromStorage = localStorage.getItem('user');
-    if (userFromStorage) return JSON.parse(userFromStorage);
-    
-    // Then check cookies
-    const userFromCookies = Cookies.get('user');
-    return userFromCookies ? JSON.parse(userFromCookies) : null;
-  } catch (e) { 
-    console.error('Error parsing user data:', e);
+    const localUser = typeof window !== "undefined" ? localStorage.getItem("user") : null;
+    const cookieUser = Cookies.get("user");
+    const user = localUser || cookieUser;
+    return user ? JSON.parse(user) : null;
+  } catch (e) {
     return null;
-  } 
+  }
 }
-
-export function isLoggedIn() { 
-  return !!getToken();
-} 
-
-export function getRole() { 
-  const u = getUser(); 
-  return u?.role; 
-}
+export function isLoggedIn(){ return !!getToken() } export function getRole(){ const u=getUser(); return u?.role; }

@@ -29,31 +29,18 @@ export default function SignInForm() {
       const res = await api.post("/auth/login", { email, password });
       const data = res.data;
 
-      const token = data?.access_token || data?.token;
-      const user = data?.user || (data?.username ? data : null);
+      const token = data?.access_token;
+      const user = data?.user;
+      const shouldUseSecureCookies = window.location.protocol === "https:";
 
       if (token) {
-        // Store in both cookies and localStorage for compatibility
-        // Don't use secure flag in development
-        const isProduction = window.location.protocol === 'https:';
-        Cookies.set("token", token, { 
-          expires: 7, 
-          secure: isProduction, 
-          sameSite: "strict" 
-        });
         localStorage.setItem("token", token);
+        Cookies.set("token", token, { expires: 7, secure: shouldUseSecureCookies, sameSite: "strict" });
       }
 
       if (user) {
-        // Store in both cookies and localStorage for compatibility
-        // Don't use secure flag in development
-        const isProduction = window.location.protocol === 'https:';
-        Cookies.set("user", JSON.stringify(user), { 
-          expires: 7, 
-          secure: isProduction, 
-          sameSite: "strict" 
-        });
         localStorage.setItem("user", JSON.stringify(user));
+        Cookies.set("user", JSON.stringify(user), { expires: 7, secure: shouldUseSecureCookies, sameSite: "strict" });
       }
 
       // Ensure minimum 4 second loading time
@@ -61,10 +48,6 @@ export default function SignInForm() {
       const remaining = Math.max(0, minLoadingTime - elapsed);
       await new Promise(resolve => setTimeout(resolve, remaining));
 
-      // Notify components that user has logged in
-      window.dispatchEvent(new CustomEvent('userLoggedIn'));
-
-      // Navigate to dashboard/home instead of /app
       navigate("/app");
     } catch (err: unknown) {
       const message =
@@ -131,7 +114,7 @@ export default function SignInForm() {
               onClick={() => setShowPassword(!showPassword)}
               className="absolute text-gray-500 right-3 top-9 hover:text-gray-700 transition"
             >
-              {showPassword ?   <FaEye />:<FaEyeSlash />} 
+              {showPassword ?   <FaEye />:<FaEyeSlash />}
             </button>
           </div>
 

@@ -4,11 +4,8 @@ import { toast, ToastContainer } from "react-toastify";
 import { FiSearch, FiEdit, FiTrash2, FiPlus, FiX, FiEye, FiCopy, FiDroplet, FiCamera, FiImage } from "react-icons/fi";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import PageMeta from "../components/common/PageMeta";
-import ImageSearchModal from "../components/ImageSearchModal";
 import api from '../utils/axios';
 import Cookies from "js-cookie";
-import { getImageUrl } from '../utils/imageUtils';
-import { compressImageForStorage } from '../utils/imageCompression';
 
 interface Category {
   id: number;
@@ -37,7 +34,6 @@ interface Stock {
   shades: Shade[];
   createdAt: string;
   updatedAt: string;
-  similarity?: number; // For image search results
 }
 
 interface StockFormData {
@@ -175,6 +171,11 @@ export default function StockPage() {
   const [searchImagePreview, setSearchImagePreview] = useState<string | null>(null);
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [adjustModalOpen, setAdjustModalOpen] = useState(false);
+  const [adjustStockItem, setAdjustStockItem] = useState<Stock | null>(null);
+  const [adjustQuantity, setAdjustQuantity] = useState("");
+  const [adjustShadeQuantities, setAdjustShadeQuantities] = useState<Record<number, string>>({});
+  const submitInProgressRef = useRef(false);
 
   const { register, control, handleSubmit, reset, setValue, watch } = useForm<StockFormData>({
     defaultValues: {
@@ -442,6 +443,11 @@ export default function StockPage() {
 
   // Handle form submission
   const onSubmit = async (data: StockFormData) => {
+    if (loading || submitInProgressRef.current) {
+      return;
+    }
+
+    submitInProgressRef.current = true;
     setLoading(true);
     try {
       // Prepare JSON payload for create/update
@@ -475,15 +481,9 @@ export default function StockPage() {
       // If there's an image file, upload it using the dedicated endpoint
       if (imageFile && savedStock && savedStock.id) {
         try {
-          console.log(`[onSubmit] Compressing and uploading image for stock ${savedStock.id}`);
-          
-          // Compress image before uploading
-          toast.info('Compressing image...');
-          const compressedImage = await compressImageForStorage(imageFile);
-          console.log(`Image compressed: ${(imageFile.size / 1024).toFixed(2)}KB → ${(compressedImage.size / 1024).toFixed(2)}KB`);
-          
+          console.log(`[onSubmit] Uploading image for stock ${savedStock.id}`, imageFile);
           const fd = new FormData();
-          fd.append('image', compressedImage);
+          fd.append('image', imageFile);
 
           // Don't set Content-Type header; let axios/browser set multipart boundary
           const uploadRes = await api.post(`/stock/${savedStock.id}/image`, fd, {
@@ -496,7 +496,7 @@ export default function StockPage() {
 
           // update preview if available
           if (uploadRes.data?.imagePath) {
-            setPreview(getImageUrl(uploadRes.data.imagePath));
+            setPreview(uploadRes.data.imagePath.startsWith('http') ? uploadRes.data.imagePath : `${api.defaults.baseURL}${uploadRes.data.imagePath}`);
           }
 
           toast.success('Image uploaded successfully!');
@@ -512,6 +512,97 @@ export default function StockPage() {
     } catch (error: any) {
       console.error('Error saving stock:', error);
       toast.error(error.response?.data?.message || "Failed to save stock");
+    } finally {
+      submitInProgressRef.current = false;
+      setLoading(false);
+    }
+  };
+
+  const openAdjustModal = (item: Stock) => {
+    setAdjustStockItem(item);
+    setAdjustQuantity("");
+    const initialShadeValues = (item.shades || []).reduce<Record<number, string>>((acc, shade) => {
+      if (shade.id) {
+        acc[shade.id] = "";
+      }
+      return acc;
+    }, {});
+    setAdjustShadeQuantities(initialShadeValues);
+    setAdjustModalOpen(true);
+  };
+
+  const closeAdjustModal = () => {
+    setAdjustModalOpen(false);
+    setAdjustStockItem(null);
+    setAdjustQuantity("");
+    setAdjustShadeQuantities({});
+  };
+
+  const handleAdjustShadeQuantityChange = (shadeId: number, value: string) => {
+    setAdjustShadeQuantities((current) => ({
+      ...current,
+      [shadeId]: value,
+    }));
+  };
+
+  const submitStockAdjustment = async () => {
+    if (!adjustStockItem || loading) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      if (adjustStockItem.shades?.length > 0) {
+        const updatedShades = adjustStockItem.shades.map((shade) => {
+          const increment = Number(adjustShadeQuantities[shade.id || 0] || 0);
+          return {
+            ...shade,
+            quantity: shade.quantity + increment,
+          };
+        });
+
+        const totalAdded = updatedShades.reduce(
+          (sum, shade, index) => sum + (shade.quantity - adjustStockItem.shades[index].quantity),
+          0,
+        );
+
+        if (totalAdded <= 0) {
+          toast.error("Enter rolls to add for at least one shade");
+          return;
+        }
+
+        await api.patch(`/stock/${adjustStockItem.id}/complete`, {
+          product: adjustStockItem.product,
+          category: adjustStockItem.category,
+          quantity: updatedShades.reduce((sum, shade) => sum + (Number(shade.quantity) || 0), 0),
+          cost: adjustStockItem.cost,
+          price: adjustStockItem.price,
+          imagePath: adjustStockItem.imagePath,
+          shades: updatedShades,
+        });
+
+        toast.success("Shade rolls added successfully!");
+      } else {
+        const quantityToAdd = Number(adjustQuantity);
+
+        if (!quantityToAdd || quantityToAdd <= 0) {
+          toast.error("Enter a quantity greater than 0");
+          return;
+        }
+
+        await api.patch(`/stock/${adjustStockItem.id}/adjust`, {
+          quantity: quantityToAdd,
+          notes: "Stock increased from stock management",
+        });
+
+        toast.success("Stock quantity added successfully!");
+      }
+
+      await fetchStocks();
+      closeAdjustModal();
+    } catch (error: any) {
+      console.error("Error adjusting stock:", error);
+      toast.error(error.response?.data?.message || "Failed to add stock quantity");
     } finally {
       setLoading(false);
     }
@@ -537,11 +628,16 @@ export default function StockPage() {
   };
 
   // Handle search by image
-  const handleSearchByImage = async (file: File) => {
+  const handleSearchByImage = async () => {
+    if (!searchImageFile) {
+      toast.error("Please upload an image to search");
+      return;
+    }
+
     setIsSearching(true);
     try {
       const formData = new FormData();
-      formData.append('image', file);
+      formData.append('image', searchImageFile);
 
       const response = await api.post('/stock/search-by-photo', formData, {
         headers: {
@@ -549,40 +645,18 @@ export default function StockPage() {
         },
       });
 
-      console.log('Search response:', response.data);
+      setSearchResults(response.data);
       
-      // Extract results from response
-      const results = response.data.results || [];
-      
-      if (results.length === 0) {
-        toast.info("No matching products found. Try a different image!");
-        setSearchResults([]);
+      if (response.data.length === 0) {
+        toast.info("No similar products found");
       } else {
-        // Extract stock items from results and add similarity info
-        const matchedStocks = results.map((result: any) => ({
-          ...result.stock,
-          similarity: result.similarity, // Add similarity score to stock object
-        }));
-        setSearchResults(matchedStocks);
-        
-        // Close the search modal
-        closeSearchModal();
-        
-        // Show success message with sweet words
-        const sweetMessages = [
-          `🎯 Perfect match! Found ${results.length} similar ${results.length === 1 ? 'product' : 'products'}!`,
-          `✨ Amazing! Discovered ${results.length} matching ${results.length === 1 ? 'item' : 'items'} for you!`,
-          `🎉 Great news! Located ${results.length} similar ${results.length === 1 ? 'product' : 'products'}!`,
-          `💫 Wonderful! Found ${results.length} ${results.length === 1 ? 'match' : 'matches'} in your inventory!`,
-        ];
-        const randomMessage = sweetMessages[Math.floor(Math.random() * sweetMessages.length)];
-        toast.success(randomMessage);
+        const method = response.data[0]?.searchMethod;
+        const methodText = method === 'rekognition' ? 'Amazon Rekognition' : 'hash-based search';
+        toast.success(`Found ${response.data.length} similar products using ${methodText}!`);
       }
     } catch (error: any) {
       console.error('Error searching by image:', error);
-      const errorMessage = error.response?.data?.message || "Oops! Image search failed. Please try again.";
-      toast.error(errorMessage);
-      setSearchResults([]);
+      toast.error(error.response?.data?.message || "Failed to search by image");
     } finally {
       setIsSearching(false);
     }
@@ -651,7 +725,7 @@ export default function StockPage() {
         setValue("subcategoryId", matchingSubcategory.id);
       }
       
-      setPreview(getImageUrl(item.imagePath));
+      setPreview(item.imagePath ? `${api.defaults.baseURL}${item.imagePath}` : null);
     } else {
       reset();
       setPreview(null);
@@ -665,13 +739,11 @@ export default function StockPage() {
     setViewModalOpen(true);
   };
 
-  // Filter stocks based on search term or search results
-  const filteredStocks = searchResults.length > 0 
-    ? searchResults // Show only search results when available
-    : stocks.filter(item =>
-        item.product.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.stockId.toLowerCase().includes(searchTerm.toLowerCase())
-      );
+  // Filter stocks based on search term
+  const filteredStocks = stocks.filter(item =>
+    item.product.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    item.stockId.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
     <div>
@@ -704,20 +776,10 @@ export default function StockPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            {searchResults.length > 0 && (
-              <div className="px-3 py-2 text-sm bg-green-100 text-green-700 rounded-md dark:bg-green-900/30 dark:text-green-300">
-                Showing {searchResults.length} search {searchResults.length === 1 ? 'result' : 'results'}
-              </div>
-            )}
-            
             <button
-              onClick={() => {
-                fetchStocks();
-                setSearchResults([]);
-                setSearchTerm("");
-              }}
+              onClick={() => fetchStocks()}
               className="px-3 py-2 text-sm bg-gray-100 rounded-md hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600"
-              title="Clear filters and search results"
+              title="Clear filters"
             >
               Clear
             </button>
@@ -763,27 +825,16 @@ export default function StockPage() {
                 {filteredStocks.map((item) => (
                   <tr key={item.id} className="border-t hover:bg-gray-50 dark:hover:bg-gray-800/50 dark:border-gray-700">
                     <td className="p-3 font-mono font-semibold text-coffee-600">
-                      <div className="flex flex-col gap-1">
-                        <span>{item.stockId}</span>
-                        {searchResults.length > 0 && item.similarity && (
-                          <span className="px-2 py-1 text-xs font-semibold text-green-700 bg-green-100 rounded-full dark:bg-green-900/30 dark:text-green-300 w-fit">
-                            {item.similarity}% match
-                          </span>
-                        )}
-                      </div>
+                      {item.stockId}
                     </td>
                     <td className="p-3">
                       <div className="flex flex-col">
                         <span className="font-medium">{item.product}</span>
                         {item.imagePath && (
                           <img
-                            src={getImageUrl(item.imagePath)}
+                            src={item.imagePath.startsWith('http') ? item.imagePath : `${api.defaults.baseURL}${item.imagePath}`}
                             alt={item.product}
                             className="object-cover w-8 h-8 mt-1 rounded"
-                            onError={(e) => {
-                              console.error('Failed to load stock image:', getImageUrl(item.imagePath));
-                              e.currentTarget.style.display = 'none';
-                            }}
                           />
                         )}
                       </div>
@@ -801,7 +852,7 @@ export default function StockPage() {
                         <div className="text-xs">
                           <span className="font-semibold">{item.shades.length} shades</span>
                           <div className="flex flex-wrap gap-1 mt-1">
-                            {item.shades.slice(0, 3).map((shade: Shade, idx: number) => (
+                            {item.shades.slice(0, 3).map((shade, idx) => (
                               <div
                                 key={idx}
                                 className="w-3 h-3 border rounded-sm"
@@ -825,6 +876,13 @@ export default function StockPage() {
                         title="View Details"
                       >
                         <FiEye />
+                      </button>
+                      <button
+                        onClick={() => openAdjustModal(item)}
+                        className="p-1 text-blue-500 rounded hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-900/30"
+                        title={item.shades?.length > 0 ? "Add Rolls" : "Add Quantity"}
+                      >
+                        <FiPlus />
                       </button>
                       <button
                         onClick={() => openModal(item)}
@@ -1289,6 +1347,100 @@ export default function StockPage() {
           </div>
         )}
 
+        {adjustModalOpen && adjustStockItem && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/50">
+            <div className="w-full max-w-xl p-6 bg-white shadow-lg rounded-xl dark:bg-gray-800">
+              <div className="flex items-start justify-between gap-4 mb-4">
+                <div>
+                  <h2 className="text-xl font-semibold dark:text-white">
+                    {adjustStockItem.shades?.length > 0 ? "Add Shade Rolls" : "Add Stock Quantity"}
+                  </h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    {adjustStockItem.product} ({adjustStockItem.stockId})
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeAdjustModal}
+                  className="p-2 text-gray-500 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+                >
+                  <FiX />
+                </button>
+              </div>
+
+              {adjustStockItem.shades?.length > 0 ? (
+                <div className="space-y-3">
+                  <p className="text-sm text-gray-600 dark:text-gray-300">
+                    Add rolls for each shade you want to increase.
+                  </p>
+                  {adjustStockItem.shades.map((shade) => (
+                    <div
+                      key={shade.id || `${adjustStockItem.id}-${shade.color}-${shade.colorName}`}
+                      className="grid items-center grid-cols-[auto_1fr_auto] gap-3 p-3 border rounded-lg dark:border-gray-700"
+                    >
+                      <div
+                        className="w-8 h-8 border rounded"
+                        style={{ backgroundColor: shade.color || "#000000" }}
+                      />
+                      <div>
+                        <p className="font-medium dark:text-white">{shade.colorName}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          Current rolls: {shade.quantity}
+                        </p>
+                      </div>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={adjustShadeQuantities[shade.id || 0] || ""}
+                        onChange={(e) => handleAdjustShadeQuantityChange(shade.id || 0, e.target.value)}
+                        placeholder="Add"
+                        className="w-24 px-3 py-2 border rounded-md outline-none focus:ring-2 focus:ring-coffee-500 dark:bg-gray-700 dark:text-white dark:border-gray-600"
+                      />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Quantity to Add
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={adjustQuantity}
+                    onChange={(e) => setAdjustQuantity(e.target.value)}
+                    placeholder="Enter quantity"
+                    className="w-full px-3 py-2 border rounded-md outline-none focus:ring-2 focus:ring-coffee-500 dark:bg-gray-700 dark:text-white dark:border-gray-600"
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Current quantity: {adjustStockItem.quantity}
+                  </p>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-3 pt-5 mt-5 border-t dark:border-gray-700">
+                <button
+                  type="button"
+                  onClick={closeAdjustModal}
+                  className="px-4 py-2 transition-colors bg-gray-300 rounded-md hover:bg-gray-400 dark:bg-gray-600 dark:hover:bg-gray-500 dark:text-white"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={submitStockAdjustment}
+                  disabled={loading}
+                  className="px-4 py-2 text-white transition-colors rounded-md bg-coffee-600 hover:bg-coffee-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading ? "Saving..." : adjustStockItem.shades?.length > 0 ? "Add Rolls" : "Add Quantity"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* View Modal */}
         {viewModalOpen && selectedStock && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/50">
@@ -1300,13 +1452,9 @@ export default function StockPage() {
                 {selectedStock.imagePath && (
                   <div className="flex justify-center">
                     <img
-                      src={getImageUrl(selectedStock.imagePath)}
+                      src={selectedStock.imagePath.startsWith('http') ? selectedStock.imagePath : `${api.defaults.baseURL}${selectedStock.imagePath}`}
                       alt={selectedStock.product}
                       className="object-cover w-32 h-32 border rounded-md"
-                      onError={(e) => {
-                        console.error('Failed to load stock image:', getImageUrl(selectedStock.imagePath));
-                        e.currentTarget.style.display = 'none';
-                      }}
                     />
                   </div>
                 )}
@@ -1497,13 +1645,9 @@ export default function StockPage() {
                           <div className="flex gap-3">
                             {result.imagePath && (
                               <img
-                                src={getImageUrl(result.imagePath)}
+                                src={result.imagePath.startsWith('http') ? result.imagePath : `${api.defaults.baseURL}${result.imagePath}`}
                                 alt={result.product}
                                 className="object-cover w-20 h-20 rounded"
-                                onError={(e) => {
-                                  console.error('Failed to load stock image:', getImageUrl(result.imagePath));
-                                  e.currentTarget.style.display = 'none';
-                                }}
                               />
                             )}
                             <div className="flex-1">
@@ -1571,14 +1715,6 @@ export default function StockPage() {
             </div>
           </div>
         )}
-
-        {/* Image Search Modal */}
-        <ImageSearchModal
-          isOpen={searchImageModalOpen}
-          onClose={closeSearchModal}
-          onSearch={handleSearchByImage}
-          isSearching={isSearching}
-        />
       </div>
     </div>
   );

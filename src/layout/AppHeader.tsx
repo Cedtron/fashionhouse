@@ -84,18 +84,18 @@ const AppHeader: React.FC<{ onChatToggle?: () => void }> = ({ onChatToggle }) =>
             {/* Cross Icon */}
           </button>
 
-   <Link to="/" className="lg:hidden">
-  <img
-    className="dark:hidden w-3/4 max-w-[150px]"
-    src="images/logo/logo.png"
-    alt="Logo"
-  />
-  <img
-    className="hidden dark:block w-3/4 max-w-[150px]"
-    src="./images/logo/logo-dark.png"
-    alt="Logo"
-  />
-</Link>
+          <Link to="/" className="lg:hidden">
+            <img
+              className="dark:hidden"
+              src="images/logo/logo.svg"
+              alt="Logo"
+            />
+            <img
+              className="hidden dark:block"
+              src="./images/logo/logo-dark.svg"
+              alt="Logo"
+            />
+          </Link>
 
           <button
             onClick={toggleApplicationMenu}
@@ -117,7 +117,7 @@ const AppHeader: React.FC<{ onChatToggle?: () => void }> = ({ onChatToggle }) =>
             </svg>
           </button>
 
-         
+          
         </div>
         <div
           className={`${
@@ -129,7 +129,7 @@ const AppHeader: React.FC<{ onChatToggle?: () => void }> = ({ onChatToggle }) =>
             {onChatToggle && (
               <button
                 onClick={onChatToggle}
-                className="flex items-center justify-center w-10 h-10 text-gray-700 rounded-lg hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800 transition-colors"
+                className="flex items-center justify-center w-10 h-10 text-gray-700 transition-colors rounded-lg hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
                 title="Open Chat"
                 aria-label="Toggle Chat"
               >

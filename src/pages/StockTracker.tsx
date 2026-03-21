@@ -4,8 +4,6 @@ import 'react-toastify/dist/ReactToastify.css';
 import api from '../utils/axios';
 import PageMeta from '../components/common/PageMeta';
 import Cookies from 'js-cookie';
-import { getImageUrl } from '../utils/imageUtils';
-import { compressImageForSearch } from '../utils/imageCompression';
 import {
   FiSearch,
   FiPackage,
@@ -139,48 +137,17 @@ export default function StockReduction() {
   // Camera functions
   const startCamera = async () => {
     try {
-      // Check if browser supports getUserMedia
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        toast.error('Camera not supported on this browser. Please use Chrome, Firefox, or Safari over HTTPS.');
-        return;
-      }
-
-      // Check if page is served over HTTPS or localhost
-      const isSecureContext = window.isSecureContext || window.location.protocol === 'https:' || window.location.hostname === 'localhost';
-      if (!isSecureContext) {
-        toast.error('Camera requires HTTPS. Please access the site via HTTPS or localhost.');
-        return;
-      }
-
-      toast.info('Requesting camera access... Please allow camera permission.');
-
       const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: { 
-          facingMode: 'environment',
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        }
+        video: { facingMode: 'environment' }
       });
-      
       setStream(mediaStream);
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
       }
       setShowCamera(true);
-      toast.success('📸 Camera ready! Click "Capture Photo" to take a picture');
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error accessing camera:', error);
-      
-      // Provide specific error messages
-      if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
-        toast.error('Camera access denied. Please allow camera permission in your browser settings.');
-      } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
-        toast.error('No camera found on this device.');
-      } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
-        toast.error('Camera is already in use by another application.');
-      } else {
-        toast.error('Failed to access camera. Please check your browser permissions and ensure you are using HTTPS.');
-      }
+      toast.error('Cannot access camera. Please check permissions.');
     }
   };
 
@@ -614,7 +581,8 @@ export default function StockReduction() {
                           {stock.imagePath && (
                             <img
                               className="object-cover w-12 h-12 rounded"
-                              src={getImageUrl(stock.imagePath)}
+
+                              src={stock.imagePath.startsWith('http') ? stock.imagePath : `${api.defaults.baseURL}${stock.imagePath}`}
                               alt={stock.product}
                             />
                           )}

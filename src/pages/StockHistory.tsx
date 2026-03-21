@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { getImageUrl } from '../utils/imageUtils';
 import { 
   FiArrowLeft, 
   FiUser, 
@@ -1852,13 +1851,9 @@ const StockHistory = () => {
               <div className="flex flex-col gap-4 md:flex-row md:items-start">
                 {stock?.imagePath && (
                   <img 
-                    src={getImageUrl(stock.imagePath)}
+                    src={stock.imagePath.startsWith('http') ? stock.imagePath : `${api.defaults.baseURL}${stock.imagePath}`} 
                     alt={stock.product}
                     className="flex-shrink-0 object-cover w-20 h-20 border rounded-lg"
-                    onError={(e) => {
-                      console.error('Failed to load stock image:', getImageUrl(stock.imagePath));
-                      e.currentTarget.style.display = 'none';
-                    }}
                   />
                 )}
                 <div className="flex-1">

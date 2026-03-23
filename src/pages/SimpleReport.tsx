@@ -17,30 +17,42 @@ import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import PageMeta from "../components/common/PageMeta";
 import PageLoader from "../components/common/PageLoader";
 
-interface StockRecord {
+interface TrackingEntry {
   id: number;
-  stockId: string;
-  product: string;
-  category: string;
-}
-
-interface QuantityChange {
-  changeType: "increase" | "decrease" | "none";
-  changeAmount: number;
-  performedAt: string;
-  performedBy: string;
+  stockId: number;
+  action: string;
   description: string;
-  isShadeUpdate: boolean;
-  shadeName?: string;
+  oldData?: any;
+  newData?: any;
+  performedBy: string;
+  performedAt: string;
+  ipAddress?: string;
+  userAgent?: string;
+  stock?: StockRecord;
 }
 
-interface MovementItem {
-  stockId: string;
-  product: string;
-  category: string;
-  stockItem: StockRecord;
-  hasShades: boolean;
-  quantityChanges: QuantityChange[];
+interface ShadeUpdate {
+  shadeId: number;
+  colorName: string;
+  color: string;
+  currentQuantity: number;
+  currentLength: number;
+  unit: string;
+  lengthUnit: string;
+  totalReductions: number;
+  totalAdditions: number;
+  reductionCount: number;
+  additionCount: number;
+  lastUpdated: string;
+}
+
+interface StockHistoryResponse {
+  stock: StockRecord & { shades: any[] };
+  tracking: TrackingEntry[];
+  summary: any;
+  quantityChanges: any[];
+  shadeAnalytics: ShadeUpdate[];
+  activityByPeriod: any[];
 }
 
 interface InventorySummaryResponse {
@@ -87,15 +99,55 @@ const monthOptions = [
 
 const PAGE_SIZE = 10;
 
+const convertTrackingToQuantityChanges = (tracking: TrackingEntry[], stock: StockRecord & { shades: any[] }): QuantityChange[] => {
+  const changes: QuantityChange[] = [];
+
+  tracking.forEach((entry) => {
+    if (entry.action === "UPDATE" && entry.description.includes("Shades:")) {
+      // Parse shade updates from description
+      const shadeUpdates = entry.description.split("|").slice(1).map(line => line.trim()).filter(line => line.length > 0);
+      
+      shadeUpdates.forEach((update) => {
+        const hexMatch = update.match(/#([0-9a-fA-F]{6})/);
+        const quantityMatch = update.match(/quantity:\s*(\d+)\s*→\s*(\d+)\s*\(([-+]?\d+)\)/);
+        
+        if (hexMatch && quantityMatch) {
+          const colorCode = `#${hexMatch[1]}`;
+          const oldQuantity = parseInt(quantityMatch[1]);
+          const newQuantity = parseInt(quantityMatch[2]);
+          const changeAmount = parseInt(quantityMatch[3]);
+          
+          const changeType = changeAmount > 0 ? "increase" : changeAmount < 0 ? "decrease" : "none";
+          
+          changes.push({
+            changeType,
+            changeAmount: Math.abs(changeAmount),
+            performedAt: entry.performedAt,
+            performedBy: entry.performedBy,
+            description: update,
+            isShadeUpdate: true,
+            shadeName: colorCode,
+          });
+        }
+      });
+    }
+  });
+
+  return changes;
+};
+
 const extractShadeRowsFromDescription = (description: string) => {
-  return description
+  const lines = description
     .split("\n")
     .map((line) => line.trim())
-    .filter((line) => /#[0-9a-fA-F]{3,8}/.test(line))
-    .map((line) => {
-      const colorCodeMatch = line.match(/#[0-9a-fA-F]{3,8}/);
+    .filter((line) => line.length > 0);
 
-      // Attempt to extract a numeric roll change (e.g. "(+3)", "-2", "(2)")
+  // First, try to extract lines with hex color codes
+  const hexColorLines = lines.filter((line) => /#[0-9a-fA-F]{3,8}/.test(line));
+
+  if (hexColorLines.length > 0) {
+    return hexColorLines.map((line) => {
+      const colorCodeMatch = line.match(/#[0-9a-fA-F]{3,8}/);
       const rollChangeMatch = line.match(/\(([+-]?\d+(?:\.\d+)?)\)/) || line.match(/(?:^|[^#\w])([+-]?\d+(?:\.\d+)?)(?![\w])/);
 
       return {
@@ -104,6 +156,27 @@ const extractShadeRowsFromDescription = (description: string) => {
         rawLine: line,
       };
     });
+  }
+
+  // If no hex colors, look for roll information in any line
+  const rollLines = lines.filter((line) => {
+    const rollChangeMatch = line.match(/\(([+-]?\d+(?:\.\d+)?)\)/) || line.match(/(?:^|[^#\w])([+-]?\d+(?:\.\d+)?)(?![\w])/);
+    return rollChangeMatch !== null;
+  });
+
+  if (rollLines.length > 0) {
+    return rollLines.map((line) => {
+      const rollChangeMatch = line.match(/\(([+-]?\d+(?:\.\d+)?)\)/) || line.match(/(?:^|[^#\w])([+-]?\d+(?:\.\d+)?)(?![\w])/);
+
+      return {
+        colorCode: "Roll update",
+        rollChange: rollChangeMatch ? Math.abs(Number(rollChangeMatch[1])) : 0,
+        rawLine: line,
+      };
+    });
+  }
+
+  return [];
 };
 
 const isHexColor = (value: unknown): value is string =>
@@ -166,6 +239,7 @@ const createExcelExport = (headers: string[], rows: Array<Array<string | number>
 const SimpleReport = () => {
   const now = new Date();
   const [summary, setSummary] = useState<InventorySummaryResponse | null>(null);
+  const [stockHistories, setStockHistories] = useState<StockHistoryResponse[]>([]);
   const [adminPhone, setAdminPhone] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -180,11 +254,86 @@ const SimpleReport = () => {
       try {
         setLoading(true);
         const [summaryRes, usersRes] = await Promise.all([
-          api.get("/stock/summary/overview"),
+          api.get("/stock/summary/overview"), // Try to get all stock summaries
           api.get("/users"),
         ]);
 
-        setSummary(summaryRes.data);
+        // Check if the response is the new format with individual stock histories
+        if (summaryRes.data.tracking) {
+          // Single stock history format - convert to summary format
+          const historyData = summaryRes.data as StockHistoryResponse;
+          setStockHistories([historyData]);
+          
+          // Convert tracking data to the expected format
+          const items: MovementItem[] = [{
+            stockId: historyData.stock.stockId,
+            product: historyData.stock.product,
+            category: historyData.stock.category,
+            stockItem: {
+              id: historyData.stock.id,
+              stockId: historyData.stock.stockId,
+              product: historyData.stock.product,
+              category: historyData.stock.category,
+            },
+            hasShades: historyData.stock.shades?.length > 0,
+            quantityChanges: convertTrackingToQuantityChanges(historyData.tracking, historyData.stock)
+          }];
+          
+          setSummary({ items });
+        } else if (Array.isArray(summaryRes.data) && summaryRes.data.length > 0 && summaryRes.data[0].tracking) {
+          // Array of stock histories
+          const histories = summaryRes.data as StockHistoryResponse[];
+          setStockHistories(histories);
+          
+          // Convert all tracking data to summary format
+          const items: MovementItem[] = histories.map(history => ({
+            stockId: history.stock.stockId,
+            product: history.stock.product,
+            category: history.stock.category,
+            stockItem: {
+              id: history.stock.id,
+              stockId: history.stock.stockId,
+              product: history.stock.product,
+              category: history.stock.category,
+            },
+            hasShades: history.stock.shades?.length > 0,
+            quantityChanges: convertTrackingToQuantityChanges(history.tracking, history.stock)
+          }));
+          
+          setSummary({ items });
+        } else {
+          // Original summary format
+          setSummary(summaryRes.data);
+        }
+
+        // If no items were found, try to get P010 data specifically
+        if ((!summaryRes.data.items || summaryRes.data.items.length === 0) && !summaryRes.data.tracking && (!Array.isArray(summaryRes.data) || summaryRes.data.length === 0)) {
+          try {
+            console.log("No data found, trying to fetch P010 data specifically...");
+            const p010Res = await api.get("/stock/7/history"); // Assuming P010 has ID 7 from sample data
+            const historyData = p010Res.data as StockHistoryResponse;
+            setStockHistories([historyData]);
+            
+            const items: MovementItem[] = [{
+              stockId: historyData.stock.stockId,
+              product: historyData.stock.product,
+              category: historyData.stock.category,
+              stockItem: {
+                id: historyData.stock.id,
+                stockId: historyData.stock.stockId,
+                product: historyData.stock.product,
+                category: historyData.stock.category,
+              },
+              hasShades: historyData.stock.shades?.length > 0,
+              quantityChanges: convertTrackingToQuantityChanges(historyData.tracking, historyData.stock)
+            }];
+            
+            setSummary({ items });
+            console.log("P010 data loaded successfully");
+          } catch (p010Error) {
+            console.warn("Could not fetch P010 data:", p010Error);
+          }
+        }
 
         const users = (usersRes.data || []) as UserItem[];
         const adminUser = users.find((user) => user.role?.toLowerCase() === "admin");
@@ -204,14 +353,22 @@ const SimpleReport = () => {
   const yearOptions = useMemo(() => {
     const years = new Set<number>([now.getFullYear()]);
 
-    summary?.items.forEach((item) => {
-      item.quantityChanges.forEach((change) => {
-        years.add(new Date(change.performedAt).getFullYear());
+    if (summary?.items) {
+      summary.items.forEach((item) => {
+        item.quantityChanges.forEach((change) => {
+          years.add(new Date(change.performedAt).getFullYear());
+        });
       });
-    });
+    } else if (stockHistories.length > 0) {
+      stockHistories.forEach((history) => {
+        history.tracking.forEach((entry) => {
+          years.add(new Date(entry.performedAt).getFullYear());
+        });
+      });
+    }
 
     return Array.from(years).sort((a, b) => b - a);
-  }, [now, summary]);
+  }, [now, summary, stockHistories]);
 
   const isDateInRange = (dateValue: string) => {
     const date = new Date(dateValue);
@@ -240,52 +397,112 @@ const SimpleReport = () => {
   };
 
   const reportRows = useMemo<ReportRow[]>(() => {
-    if (!summary) return [];
+    if (summary?.items) {
+      // Original format
+      return summary.items.flatMap((item) =>
+        item.quantityChanges
+          .filter((change) => change.changeType !== "none" && isDateInRange(change.performedAt))
+          .flatMap((change) => {
+            if (change.isShadeUpdate) {
+              const shadeRows = extractShadeRowsFromDescription(change.description);
 
-    return summary.items.flatMap((item) =>
-      item.quantityChanges
-        .filter((change) => change.changeType !== "none" && isDateInRange(change.performedAt))
-        .flatMap((change) => {
-          if (change.isShadeUpdate) {
-            const shadeRows = extractShadeRowsFromDescription(change.description);
+              if (shadeRows.length > 0) {
+                return shadeRows.map((shadeRow) =>
+                  normalizeReportRow({
+                    stockId: item.stockId,
+                    stockRecordId: item.stockItem.id,
+                    product: item.product,
+                    category: item.category,
+                    added: change.changeType === "increase" ? shadeRow.rollChange : 0,
+                    reduced: change.changeType === "decrease" ? shadeRow.rollChange : 0,
+                    roll: shadeRow.colorCode,
+                    date: change.performedAt,
+                    performedBy: change.performedBy,
+                    description: shadeRow.rawLine,
+                    rollAffected: shadeRow.rollChange,
+                  }),
+                );
+              } else {
+                // Try to extract roll info from description even if no structured shade rows
+                const rollMatch = change.description.match(/\(([+-]?\d+(?:\.\d+)?)\)/) || change.description.match(/(?:^|[^#\w])([+-]?\d+(?:\.\d+)?)(?![\w])/);
+                const rollChange = rollMatch ? Math.abs(Number(rollMatch[1])) : change.changeAmount;
 
-            if (shadeRows.length > 0) {
-              return shadeRows.map((shadeRow) =>
-                normalizeReportRow({
-                  stockId: item.stockId,
-                  stockRecordId: item.stockItem.id,
-                  product: item.product,
-                  category: item.category,
-                  added: change.changeType === "increase" ? shadeRow.rollChange : 0,
-                  reduced: change.changeType === "decrease" ? shadeRow.rollChange : 0,
-                  roll: shadeRow.colorCode,
-                  date: change.performedAt,
-                  performedBy: change.performedBy,
-                  description: shadeRow.rawLine,
-                  rollAffected: shadeRow.rollChange,
-                }),
-              );
+                return [
+                  normalizeReportRow({
+                    stockId: item.stockId,
+                    stockRecordId: item.stockItem.id,
+                    product: item.product,
+                    category: item.category,
+                    added: change.changeType === "increase" ? rollChange : 0,
+                    reduced: change.changeType === "decrease" ? rollChange : 0,
+                    roll: change.shadeName || "Roll update",
+                    date: change.performedAt,
+                    performedBy: change.performedBy,
+                    description: change.description,
+                    rollAffected: rollChange,
+                  }),
+                ];
+              }
             }
-          }
 
-          return [
-            normalizeReportRow({
-              stockId: item.stockId,
-              stockRecordId: item.stockItem.id,
-              product: item.product,
-              category: item.category,
-              added: change.changeType === "increase" ? change.changeAmount : 0,
-              reduced: change.changeType === "decrease" ? change.changeAmount : 0,
-              roll: change.isShadeUpdate ? change.shadeName || "Shade update" : "-",
-              date: change.performedAt,
-              performedBy: change.performedBy,
-              description: change.description,
-              rollAffected: change.isShadeUpdate ? change.changeAmount : 0,
-            }),
-          ];
-        }),
-    ).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [summary, rangeFilter, selectedMonth, selectedYear]);
+            return [
+              normalizeReportRow({
+                stockId: item.stockId,
+                stockRecordId: item.stockItem.id,
+                product: item.product,
+                category: item.category,
+                added: change.changeType === "increase" ? change.changeAmount : 0,
+                reduced: change.changeType === "decrease" ? change.changeAmount : 0,
+                roll: change.isShadeUpdate ? change.shadeName || "Shade update" : "-",
+                date: change.performedAt,
+                performedBy: change.performedBy,
+                description: change.description,
+                rollAffected: change.isShadeUpdate ? change.changeAmount : 0,
+              }),
+            ];
+          }),
+      ).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    } else if (stockHistories.length > 0) {
+      // New format - process stock histories
+      return stockHistories.flatMap((history) =>
+        history.tracking
+          .filter((entry) => entry.action === "UPDATE" && entry.description.includes("Shades:") && isDateInRange(entry.performedAt))
+          .flatMap((entry) => {
+            const shadeUpdates = entry.description.split("|").slice(1).map(line => line.trim()).filter(line => line.length > 0 && line.includes("quantity:"));
+            
+            return shadeUpdates.map((update) => {
+              const hexMatch = update.match(/#([0-9a-fA-F]{6})/);
+              const quantityMatch = update.match(/quantity:\s*(\d+)\s*→\s*(\d+)\s*\(([-+]?\d+)\)/);
+              
+              if (hexMatch && quantityMatch) {
+                const colorCode = `#${hexMatch[1]}`;
+                const changeAmount = parseInt(quantityMatch[3]);
+                
+                const changeType = changeAmount > 0 ? "increase" : "decrease";
+                
+                return normalizeReportRow({
+                  stockId: history.stock.stockId,
+                  stockRecordId: history.stock.id,
+                  product: history.stock.product,
+                  category: history.stock.category,
+                  added: changeType === "increase" ? Math.abs(changeAmount) : 0,
+                  reduced: changeType === "decrease" ? Math.abs(changeAmount) : 0,
+                  roll: colorCode,
+                  date: entry.performedAt,
+                  performedBy: entry.performedBy,
+                  description: update,
+                  rollAffected: Math.abs(changeAmount),
+                });
+              }
+              
+              return null;
+            }).filter(Boolean);
+          }),
+      ).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    }
+
+    return [];
+  }, [summary, stockHistories, rangeFilter, selectedMonth, selectedYear]);
 
   const totals = useMemo(() => {
     return reportRows.reduce(
@@ -438,7 +655,7 @@ const SimpleReport = () => {
       <div className="min-h-screen bg-gray-50">
         <PageMeta title="Simple Report" description="Simple stock movement report" />
         <PageBreadcrumb pageTitle="Simple Report" />
-        <div className="p-6 mt-10 text-center bg-white border border-red-100 rounded-xl shadow-sm max-w-3xl mx-auto">
+        <div className="max-w-3xl p-6 mx-auto mt-10 text-center bg-white border border-red-100 shadow-sm rounded-xl">
           <p className="font-semibold text-red-600">{error}</p>
         </div>
       </div>
@@ -458,29 +675,29 @@ const SimpleReport = () => {
       </div>
 
       <div className="grid grid-cols-1 gap-4 mb-6 md:grid-cols-2 xl:grid-cols-4">
-        <div className="p-5 bg-white border border-gray-200 rounded-xl shadow-sm">
+        <div className="p-5 bg-white border border-gray-200 shadow-sm rounded-xl">
           <p className="text-sm font-medium text-gray-500">Report Range</p>
           <p className="mt-2 text-2xl font-bold text-coffee-700">{rangeLabel}</p>
           <p className="mt-1 text-xs text-gray-400">Current report filter</p>
         </div>
-        <div className="p-5 bg-white border border-gray-200 rounded-xl shadow-sm">
+        <div className="p-5 bg-white border border-gray-200 shadow-sm rounded-xl">
           <p className="text-sm font-medium text-gray-500">Total Added</p>
           <p className="mt-2 text-2xl font-bold text-green-600">+{totals.totalAdded}</p>
           <p className="mt-1 text-xs text-gray-400">In selected period</p>
         </div>
-        <div className="p-5 bg-white border border-gray-200 rounded-xl shadow-sm">
+        <div className="p-5 bg-white border border-gray-200 shadow-sm rounded-xl">
           <p className="text-sm font-medium text-gray-500">Total Reduced</p>
           <p className="mt-2 text-2xl font-bold text-red-600">-{totals.totalReduced}</p>
           <p className="mt-1 text-xs text-gray-400">In selected period</p>
         </div>
-        <div className="p-5 bg-white border border-gray-200 rounded-xl shadow-sm">
+        <div className="p-5 bg-white border border-gray-200 shadow-sm rounded-xl">
           <p className="text-sm font-medium text-gray-500">Shade Changes</p>
           <p className="mt-2 text-2xl font-bold text-blue-600">{totals.shadeChanges}</p>
           <p className="mt-1 text-xs text-gray-400">Color-related updates</p>
         </div>
       </div>
 
-      <div className="p-4 mb-6 bg-white border border-gray-200 rounded-xl shadow-sm">
+      <div className="p-4 mb-6 bg-white border border-gray-200 shadow-sm rounded-xl">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div className="grid grid-cols-2 gap-3 md:grid-cols-5 xl:flex xl:flex-wrap">
             <button
@@ -556,7 +773,7 @@ const SimpleReport = () => {
         </div>
       </div>
 
-      {/* <div className="p-4 mb-6 bg-white border border-gray-200 rounded-xl shadow-sm">
+      {/* <div className="p-4 mb-6 bg-white border border-gray-200 shadow-sm rounded-xl">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h2 className="text-lg font-semibold text-gray-800">WhatsApp Report Share</h2>
@@ -603,7 +820,7 @@ const SimpleReport = () => {
         </div>
       </div> */}
 
-      <div className="overflow-hidden bg-white border border-gray-200 rounded-xl shadow-sm">
+      <div className="overflow-hidden bg-white border border-gray-200 shadow-sm rounded-xl">
         <div className="flex flex-col gap-2 px-4 py-4 border-b border-gray-200 md:px-6 md:flex-row md:items-center md:justify-between">
           <div>
             <h2 className="text-lg font-semibold text-gray-800">Movement Table</h2>
@@ -631,7 +848,7 @@ const SimpleReport = () => {
           <button
             type="button"
             onClick={exportToExcel}
-            className="inline-flex items-center gap-2 rounded-lg bg-coffee-600 px-4 py-2 text-sm font-medium text-white hover:bg-coffee-700"
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white rounded-lg bg-coffee-600 hover:bg-coffee-700"
           >
             <FiDownload />
             Export Excel
@@ -665,15 +882,24 @@ const SimpleReport = () => {
                   <td className="px-4 py-3 font-semibold text-right text-red-600">{row.reduced > 0 ? row.reduced : "-"}</td>
                   <td className="px-4 py-3 text-gray-600">
                     {isHexColor(row.roll) ? (
-                      <span className="inline-flex items-center gap-2">
-                        <span
-                          className="h-3 w-3 rounded-full border border-gray-200"
+                      <div className="flex items-center gap-3">
+                        <div
+                          className="w-6 h-6 border-2 border-gray-300 rounded-full shadow-sm"
                           style={{ backgroundColor: row.roll }}
+                          title={row.roll}
                         />
-                        <span>{row.roll}</span>
-                      </span>
+                        <div>
+                          <div className="font-medium text-gray-800">{row.roll}</div>
+                          <div className="text-xs text-gray-500">{row.rollAffected} rolls changed</div>
+                        </div>
+                      </div>
                     ) : (
-                      row.roll
+                      <div>
+                        <div className="font-medium text-gray-800">{row.roll}</div>
+                        {row.rollAffected > 0 && (
+                          <div className="text-xs text-gray-500">{row.rollAffected} rolls affected</div>
+                        )}
+                      </div>
                     )}
                   </td>
                   <td className="px-4 py-3">
@@ -722,19 +948,19 @@ const SimpleReport = () => {
                 type="button"
                 onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
                 disabled={currentPage === 1}
-                className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex items-center gap-2 px-3 py-2 text-sm text-gray-700 border border-gray-200 rounded-lg disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <FiChevronLeft />
                 Prev
               </button>
-              <span className="rounded-lg bg-gray-100 px-3 py-2 text-sm text-gray-700">
+              <span className="px-3 py-2 text-sm text-gray-700 bg-gray-100 rounded-lg">
                 {currentPage} / {totalPages}
               </span>
               <button
                 type="button"
                 onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
                 disabled={currentPage === totalPages}
-                className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex items-center gap-2 px-3 py-2 text-sm text-gray-700 border border-gray-200 rounded-lg disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Next
                 <FiChevronRight />

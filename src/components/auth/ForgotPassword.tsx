@@ -154,7 +154,7 @@ export default function ForgotPasswordForm() {
       </div>
 
       <div className="flex flex-col justify-center flex-1 w-full max-w-md mx-auto">
-        <div className="mb-5 sm:mb-8 text-center">
+        <div className="mb-5 text-center sm:mb-8">
           <h1 className="mb-2 font-semibold text-gray-800 text-title-sm sm:text-title-md">
             Forgot Password
           </h1>
@@ -176,13 +176,13 @@ export default function ForgotPasswordForm() {
           {/* STEP 1 — EMAIL */}
           {step === "email" && (
             <div className="space-y-4">
-              <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
+              <div className="p-4 border border-blue-100 rounded-lg bg-blue-50">
                 <h3 className="text-sm font-medium text-blue-800">Step 1: Enter Your Email</h3>
                 <p className="mt-1 text-sm text-blue-700">We'll check your account before asking for the password hint</p>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block mb-2 text-sm font-medium text-gray-700">
                   <FiMail className="inline w-4 h-4 mr-2" />
                   Email Address <span className="text-red-500">*</span>
                 </label>
@@ -208,26 +208,26 @@ export default function ForgotPasswordForm() {
           {/* STEP 2 — PASSWORD HINT */}
           {step === "passwordHint" && (
             <div className="space-y-4">
-              <div className="flex items-center p-3 bg-green-50 rounded-lg border border-green-200">
-                <FiCheck className="w-5 h-5 text-green-600 mr-3" />
+              <div className="flex items-center p-3 border border-green-200 rounded-lg bg-green-50">
+                <FiCheck className="w-5 h-5 mr-3 text-green-600" />
                 <div>
                   <p className="text-sm font-medium text-green-800">Email Verified</p>
                   <p className="text-xs text-green-700">Account found for: {verifiedEmail}</p>
                 </div>
               </div>
 
-              <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
+              <div className="p-4 border border-blue-100 rounded-lg bg-blue-50">
                 <h3 className="text-sm font-medium text-blue-800">Step 2: Enter Password Hint</h3>
                 <p className="mt-1 text-sm text-blue-700">Enter the password hint stored in your account</p>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block mb-2 text-sm font-medium text-gray-700">
                   <FiKey className="inline w-4 h-4 mr-2" />
                   Password Hint <span className="text-red-500">*</span>
                 </label>
                 <input
-                  type="password"
+                  type="text"
                   {...register("passwordHint", {
                     required: "Password hint is required",
                   })}
@@ -244,8 +244,8 @@ export default function ForgotPasswordForm() {
           {/* STEP 3 — NEW PASSWORD */}
           {step === "newPassword" && (
             <div className="space-y-4">
-              <div className="flex items-center p-3 bg-green-50 rounded-lg border border-green-200">
-                <FiCheck className="w-5 h-5 text-green-600 mr-3" />
+              <div className="flex items-center p-3 border border-green-200 rounded-lg bg-green-50">
+                <FiCheck className="w-5 h-5 mr-3 text-green-600" />
                 <div>
                   <p className="text-sm font-medium text-green-800">Identity Verified</p>
                   <p className="text-xs text-green-700">Email: {verifiedEmail}</p>
@@ -253,13 +253,13 @@ export default function ForgotPasswordForm() {
                 </div>
               </div>
 
-              <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
+              <div className="p-4 border border-blue-100 rounded-lg bg-blue-50">
                 <h3 className="text-sm font-medium text-blue-800">Step 3: Set New Password</h3>
                 <p className="mt-1 text-sm text-blue-700">Create a strong new password</p>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block mb-2 text-sm font-medium text-gray-700">
                   <FiLock className="inline w-4 h-4 mr-2" />
                   New Password <span className="text-red-500">*</span>
                 </label>
@@ -294,7 +294,7 @@ export default function ForgotPasswordForm() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block mb-2 text-sm font-medium text-gray-700">
                   <FiLock className="inline w-4 h-4 mr-2" />
                   Confirm Password <span className="text-red-500">*</span>
                 </label>
@@ -351,7 +351,7 @@ export default function ForgotPasswordForm() {
             >
               {loading ? (
                 <div className="flex items-center justify-center">
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                  <div className="w-4 h-4 mr-2 border-2 border-white rounded-full border-t-transparent animate-spin"></div>
                   Processing...
                 </div>
               ) : (

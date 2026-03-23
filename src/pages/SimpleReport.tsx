@@ -556,7 +556,7 @@ const SimpleReport = () => {
         </div>
       </div>
 
-      <div className="p-4 mb-6 bg-white border border-gray-200 rounded-xl shadow-sm">
+      {/* <div className="p-4 mb-6 bg-white border border-gray-200 rounded-xl shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h2 className="text-lg font-semibold text-gray-800">WhatsApp Report Share</h2>
@@ -601,7 +601,7 @@ const SimpleReport = () => {
             </a>
           </div>
         </div>
-      </div>
+      </div> */}
 
       <div className="overflow-hidden bg-white border border-gray-200 rounded-xl shadow-sm">
         <div className="flex flex-col gap-2 px-4 py-4 border-b border-gray-200 md:px-6 md:flex-row md:items-center md:justify-between">
